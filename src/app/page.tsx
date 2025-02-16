@@ -89,7 +89,7 @@ export default function Home() {
           loading={
             <div className={layoutClassName}>
               {Array.from({ length: ITEMS_PER_PAGE }).map((_, index) => {
-                return <Skeleton key={index} className="h-[214]" />;
+                return <Skeleton key={index} className="h-[13.375rem]" />;
               })}
             </div>
           }
