@@ -96,9 +96,9 @@ export async function GET(request: Request) {
   try {
     const totalMintedByWallets = await getTotalMintedNftByWallets();
 
-    return NextResponse.json(
-      totalMintedByWallets.slice(offset, offset + limit)
-    );
+    const limited = totalMintedByWallets.slice(0, 100);
+
+    return NextResponse.json(limited.slice(offset, offset + limit));
   } catch (error) {
     console.error("Error fetching logs:", error);
     return NextResponse.json(

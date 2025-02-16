@@ -13,6 +13,7 @@ const WalletDetailsCard = ({
   data,
 }: {
   data: {
+    position: number;
     walletAddress: string;
     totalMinted: number;
   };
@@ -20,33 +21,39 @@ const WalletDetailsCard = ({
   const { copyToClipboard, isCopied } = useCopyToClipboard({ timeout: 800 });
   const CopyIcon = isCopied ? Check : Copy;
 
+  const { walletAddress, position, totalMinted } = data;
+
   return (
     <Card>
-      <CardHeader className="items-center">
-        <Jazzicon diameter={80} seed={jsNumberForAddress(data.walletAddress)} />
+      <CardHeader>
+        <p className="text-center text-muted-foreground text-sm mb-2">
+          #{position}
+        </p>
+        <Jazzicon
+          paperStyles={{ margin: "auto" }}
+          diameter={80}
+          seed={jsNumberForAddress(walletAddress)}
+        />
       </CardHeader>
       <CardContent>
+        <p className="text-muted-foreground text-center mb-1">
+          Total minted: <span className="font-semibold">{totalMinted}</span>
+        </p>
         <div className="flex gap-1 overflow-hidden items-center">
-          <p className="flex flex-1 min-w-0">
-            <span className="truncate flex-1 min-w-0">
-              {data.walletAddress}
-            </span>
+          <p className="flex min-w-0">
+            <span className="truncate flex-1 min-w-0">{walletAddress}</span>
           </p>
           <Button
             className={cn("flex-shrink-0", {
               "!text-green-500": isCopied,
             })}
-            onClick={() => copyToClipboard(data.walletAddress)}
+            onClick={() => copyToClipboard(walletAddress)}
             variant="outline"
             size="icon"
           >
             <CopyIcon />
           </Button>
         </div>
-        <p className="text-muted-foreground text-center">
-          Total minted:{" "}
-          <span className="font-semibold">{data.totalMinted}</span>
-        </p>
       </CardContent>
     </Card>
   );
@@ -76,10 +83,15 @@ export default function Home() {
 
       <div className="flex flex-col gap-4">
         <ul className={layoutClassName}>
-          {allData?.map((item) => {
+          {allData?.map((item, index) => {
             return (
               <li key={item.walletAddress}>
-                <WalletDetailsCard data={item} />
+                <WalletDetailsCard
+                  data={{
+                    ...item,
+                    position: index + 1,
+                  }}
+                />
               </li>
             );
           })}
