@@ -5,7 +5,7 @@ import { InfiniteData, UseInfiniteQueryResult } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
 import { Loader2 } from "lucide-react";
 import { getErrorMessage } from "@/utils/error";
-import { Button } from "./ui/button";
+import { Button } from "../ui/button";
 
 interface InfiniteQueryStateProps {
   isEmpty?: boolean;
@@ -46,6 +46,7 @@ const InfiniteQueryState = ({
   const showLoader = !isError && (isLoading || hasNextPage);
   const showEmpty = !isLoading && !isError && isEmpty;
   const showError = !isLoading && isError;
+  const showAllLoaded = !isError && !isLoading && !isEmpty && !hasNextPage;
 
   const handleTryAgainButtonClick = () => {
     if (isEmpty) {
@@ -55,7 +56,7 @@ const InfiniteQueryState = ({
     }
   };
 
-  if (!showLoader && !showEmpty && !showEmpty) {
+  if (!showLoader && !showEmpty && !showEmpty && !showAllLoaded) {
     return null;
   }
 
@@ -64,8 +65,12 @@ const InfiniteQueryState = ({
       {showLoader && (
         // Key is added to trigger in view cb again if component is already in view
         <div ref={ref} key={data?.pages.length} className={triggerClassName}>
-          {loading || <Loader2 className="m-auto" />}
+          {loading || <Loader2 className="m-auto size-9 animate-spin" />}
         </div>
+      )}
+
+      {showAllLoaded && (
+        <p className="m-auto text-center text-muted-foreground">All Loaded!</p>
       )}
 
       {showEmpty &&
@@ -76,7 +81,7 @@ const InfiniteQueryState = ({
       {showError && (
         <div className="flex flex-col gap-3 m-auto">
           <p className="text-center">
-            Error happened while loading:
+            Something went wrong:
             <br />
             {getErrorMessage(error)}
           </p>
