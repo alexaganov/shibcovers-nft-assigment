@@ -1,7 +1,13 @@
 import { ContractMetaModel, ContractMetaType } from "@/models/contractMeta";
 import { getHolderModel, HolderType } from "@/models/holders";
 import { AnyBulkWriteOperation } from "mongoose";
-import { Address, createPublicClient, http, zeroAddress } from "viem";
+import {
+  Address,
+  createPublicClient,
+  GetLogsReturnType,
+  http,
+  zeroAddress,
+} from "viem";
 import { shibarium } from "viem/chains";
 
 const client = createPublicClient({
@@ -29,32 +35,19 @@ const getContractDetails = async ({
   contractDeployBlockNumber: bigint;
   staleThresholdInMs?: number;
 }): Promise<{ meta: ContractMetaType; isIndexing: boolean } | null> => {
-  const lowerAddress = contractAddress.toLowerCase();
-
-  // Step 1: Ensure the document exists. Create it if not.
-  let meta = await ContractMetaModel.findOne({ contractAddress: lowerAddress });
-
-  if (!meta) {
-    const lastIndexedBlockNumber =
-      contractDeployBlockNumber === BigInt(0)
-        ? contractDeployBlockNumber
-        : contractDeployBlockNumber - BigInt(1);
-
-    meta = await ContractMetaModel.create({
-      contractAddress: lowerAddress,
-      lastIndexedBlock: lastIndexedBlockNumber.toString(),
-      isProcessing: false,
-      startedProcessingAt: new Date(0),
-    });
-  }
+  const normalizedAddress = contractAddress.toLowerCase();
+  const lastIndexedBlockNumber =
+    contractDeployBlockNumber === BigInt(0)
+      ? contractDeployBlockNumber
+      : contractDeployBlockNumber - BigInt(1);
 
   const now = new Date();
   const staleThresholdDate = new Date(now.getTime() - staleThresholdInMs);
 
-  // Step 2: Try to acquire the lock atomically.
+  // First, try to update the document if it's available (free or stale)
   const updatedMeta = await ContractMetaModel.findOneAndUpdate(
     {
-      contractAddress: lowerAddress,
+      contractAddress: normalizedAddress,
       $or: [
         { isProcessing: false },
         { startedProcessingAt: { $lt: staleThresholdDate } },
@@ -70,7 +63,25 @@ const getContractDetails = async ({
     return { meta: updatedMeta, isIndexing: false };
   }
 
-  return { meta, isIndexing: true };
+  // If update did not occur, check if the document exists:
+  const existingMeta = await ContractMetaModel.findOne({
+    contractAddress: normalizedAddress,
+  });
+
+  if (existingMeta) {
+    // Document exists but is locked; return it signaling that indexing is in progress.
+    return { meta: existingMeta, isIndexing: true };
+  }
+
+  // If no document exists, create one.
+  const newMeta = await ContractMetaModel.create({
+    contractAddress: normalizedAddress,
+    lastIndexedBlock: lastIndexedBlockNumber.toString(),
+    isProcessing: true,
+    startedProcessingAt: now,
+  });
+
+  return { meta: newMeta, isIndexing: false };
 };
 
 const updateHolders = async ({
@@ -87,10 +98,7 @@ const updateHolders = async ({
     }[]
   >;
 }) => {
-  const normalizedContractAddress = contractAddress.toLocaleLowerCase();
-
-  const HolderModel = getHolderModel(normalizedContractAddress as Address);
-
+  const normalizedContractAddress = contractAddress.toLowerCase();
   const bulkWriteOperations = Object.entries(data).map(
     ([walletAddress, tokens]) => {
       const operation: AnyBulkWriteOperation<HolderType> = {
@@ -114,7 +122,11 @@ const updateHolders = async ({
     }
   );
 
-  await HolderModel.bulkWrite(bulkWriteOperations);
+  if (bulkWriteOperations.length > 0) {
+    const HolderModel = getHolderModel(normalizedContractAddress as Address);
+
+    await HolderModel.bulkWrite(bulkWriteOperations);
+  }
 
   await ContractMetaModel.findOneAndUpdate(
     {
@@ -129,6 +141,36 @@ const updateHolders = async ({
   );
 };
 
+const parseLogs = (logs: GetLogsReturnType<typeof transferEventAbi>) => {
+  return logs.reduce(
+    (acc, log) => {
+      const { to: walletAddress, tokenId } = log.args;
+
+      if (!walletAddress || !tokenId || log.blockNumber === null) {
+        return acc;
+      }
+
+      const normalizedWalletAddress = walletAddress.toLowerCase();
+
+      if (!acc[normalizedWalletAddress]) {
+        acc[normalizedWalletAddress] = [];
+      }
+
+      acc[normalizedWalletAddress].push({
+        tokenId,
+      });
+
+      return acc;
+    },
+    {} as Record<
+      string,
+      {
+        tokenId: bigint;
+      }[]
+    >
+  );
+};
+
 export const indexMintedNfts = async ({
   blockChunkSize = BigInt(100_000),
   minBlockAmount = 1_000,
@@ -140,8 +182,7 @@ export const indexMintedNfts = async ({
   contractAddress: Address;
   contractDeployBlockNumber: bigint;
 }) => {
-  const normalizedContractAddress =
-    contractAddress.toLocaleLowerCase() as Address;
+  const normalizedContractAddress = contractAddress.toLowerCase() as Address;
 
   const contractDetails = await getContractDetails({
     contractAddress: normalizedContractAddress,
@@ -193,41 +234,13 @@ export const indexMintedNfts = async ({
 
         console.log(`Found ${logs.length} minted NFTs`);
 
-        if (logs.length > 0) {
-          const walletToMintedTokenIds = logs.reduce(
-            (acc, log) => {
-              const { to: walletAddress, tokenId } = log.args;
+        const walletToMintedTokenIds = parseLogs(logs);
 
-              if (!walletAddress || !tokenId || log.blockNumber === null) {
-                return acc;
-              }
-
-              const normalizedWalletAddress = walletAddress.toLowerCase();
-
-              if (!acc[normalizedWalletAddress]) {
-                acc[normalizedWalletAddress] = [];
-              }
-
-              acc[normalizedWalletAddress].push({
-                tokenId,
-              });
-
-              return acc;
-            },
-            {} as Record<
-              string,
-              {
-                tokenId: bigint;
-              }[]
-            >
-          );
-
-          await updateHolders({
-            contractAddress: normalizedContractAddress,
-            data: walletToMintedTokenIds,
-            indexedBlock: toBlock,
-          });
-        }
+        await updateHolders({
+          contractAddress: normalizedContractAddress,
+          data: walletToMintedTokenIds,
+          indexedBlock: toBlock,
+        });
       } catch (error) {
         console.error("Error fetching mint transactions:", error);
 

@@ -15,6 +15,9 @@ export const getTopNftHoldersInfiniteQueryOptions = ({
     queryFn: ({ pageParam: offset = 0 }) => {
       return ky
         .get(`${HOST}/api/top-holders`, {
+          next: {
+            revalidate: 60,
+          },
           searchParams: {
             offset,
             limit,
