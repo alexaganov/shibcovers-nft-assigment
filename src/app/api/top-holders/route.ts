@@ -1,5 +1,6 @@
 import { NFT_CONTRACT_ADDRESS, NFT_CONTRACT_DEPLOYMENT_BLOCK } from "@/config";
 import { getHolderModel } from "@/models/holders";
+import { getErrorMessage } from "@/utils/error";
 import { indexMintedNfts } from "@/utils/indexing";
 import { NextResponse } from "next/server";
 
@@ -40,7 +41,7 @@ export async function GET(request: Request) {
   } catch (error) {
     console.error("Error fetching logs:", error);
     return NextResponse.json(
-      { error: "Internal server error" },
+      { error: "Internal server error", message: getErrorMessage(error) },
       { status: 500 }
     );
   }
