@@ -1,4 +1,5 @@
 import { NFT_CONTRACT_ADDRESS, NFT_CONTRACT_DEPLOYMENT_BLOCK } from "@/config";
+import { connectDatabase } from "@/lib/db";
 import { getHolderModel } from "@/models/holders";
 import { getErrorMessage } from "@/utils/error";
 import { indexMintedNfts } from "@/utils/indexing";
@@ -12,7 +13,17 @@ if (!NFT_CONTRACT_DEPLOYMENT_BLOCK) {
   throw new Error("Invalid contract deployment block number");
 }
 
+const MONGODB_URI = process.env.MONGODB_URI ?? "";
+
+if (!MONGODB_URI) {
+  throw new Error("Please define the MONGODB_URI environment variable");
+}
+
 export async function GET(request: Request) {
+  await connectDatabase({
+    uri: MONGODB_URI,
+  });
+
   await indexMintedNfts({
     contractAddress: NFT_CONTRACT_ADDRESS,
     contractDeployBlockNumber: NFT_CONTRACT_DEPLOYMENT_BLOCK,

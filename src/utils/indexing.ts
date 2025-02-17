@@ -1,4 +1,3 @@
-import { connectDatabase } from "@/lib/db";
 import { ContractMetaModel, ContractMetaType } from "@/models/contractMeta";
 import { getHolderModel, HolderType } from "@/models/holders";
 import { AnyBulkWriteOperation } from "mongoose";
@@ -141,8 +140,6 @@ export const indexMintedNfts = async ({
   contractAddress: Address;
   contractDeployBlockNumber: bigint;
 }) => {
-  await connectDatabase();
-
   const normalizedContractAddress =
     contractAddress.toLocaleLowerCase() as Address;
 
