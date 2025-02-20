@@ -34,8 +34,10 @@ export const NftHolderCard = ({
   return (
     <Card>
       <CardHeader className="p-4">
-        <div className="flex w-full justify-between gap-1">
-          <Badge variant="secondary">#{position}</Badge>
+        <div className="flex w-full items-center justify-between gap-1">
+          <span className="text-xs text-muted-foreground font-semibold">
+            #{position}
+          </span>
 
           <div className="flex gap-1">
             <Button size="icon-xs" variant="outline" asChild>
@@ -89,9 +91,7 @@ export const NftHolderCard = ({
         </div>
 
         <Badge variant="secondary" className="flex-1 w-full justify-center">
-          <span>
-            {holder.tokenCount} <span className="font-normal">Minted</span>
-          </span>
+          <span>{holder.tokenCount} Minted</span>
         </Badge>
       </CardHeader>
     </Card>

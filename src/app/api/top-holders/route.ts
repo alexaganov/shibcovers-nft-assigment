@@ -31,7 +31,10 @@ export async function GET(request: Request) {
 
   const { searchParams } = new URL(request.url);
 
-  const limit = Math.max(Number(searchParams.get("limit") || 24), 1);
+  const limit = Math.min(
+    Math.max(Number(searchParams.get("limit") || 24), 1),
+    100
+  );
   const offset = Math.max(Number(searchParams.get("offset") || 0), 0);
 
   try {
@@ -43,7 +46,6 @@ export async function GET(request: Request) {
         },
       },
       { $sort: { tokenCount: -1, walletAddress: 1 } },
-      { $limit: 100 },
       { $skip: offset },
       { $limit: limit },
     ]);
